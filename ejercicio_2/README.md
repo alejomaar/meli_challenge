@@ -103,7 +103,6 @@ POST /survey
 
 ![Survey](./img/survey.png)
 
-
 ---
 
 ## ❓ Question
@@ -186,7 +185,6 @@ Represents a single response to a question.
 
 ![Answer](./img/answer.png)
 
-
 ---
 
 ## 💬 FeedbackAnswer
@@ -202,9 +200,7 @@ POST /assesment/{assessment_id}/feedback
 
 **Result**
 
-
 ![FeedbackAnswer](./img/feedback_answer.png)
-
 
 ---
 
@@ -243,17 +239,6 @@ GET /survey/{survey_id}/metrics?ranking_size=3
   "summary": "Se obtuvo un ranking para la encuesta 'matematicas', con un total de 6 preguntas (3 abiertas y 3 cerradas). El mejor desempeño general fue de pedro."
 }
 ```
----
-
-## 🧠 Why this design works
-
-* Feedback is **educational**, not punitive
-* Scores are internal and never shown directly
-* LLM usage is controlled and explainable
-* Strong typing and constraints everywhere
-* Easy to extend with real authentication and analytics
-
----
 
 ## 🛠 Tech Stack
 
@@ -272,12 +257,27 @@ GET /survey/{survey_id}/metrics?ranking_size=3
 
 ---
 
+## Database Schema
+
+![Database](./img/database.png)
+
+This diagram shows the data model for an  **interactive quiz system** :
+
+* **Survey** : Defines a quiz topic and groups questions.
+* **Question** : Belongs to a survey; can be **OPEN** or **CLOSED** (closed questions may include a hint).
+* **Option** : Possible answers for closed questions; exactly one is correct.
+* **User** : A participant identified by a nickname.
+* **Assessment** : Represents one user answering one survey (one attempt per user per survey).
+* **Answer** : The user’s response to a question (text for open, selected option for closed).
+* **FeedbackAnswer** : Per-answer educational feedback with an internal score (0–1).
+* **Feedback** : Overall summary feedback for an assessment.
+
+**Flow:**
+
+User → Assessment → Answers → FeedbackAnswer, all tied back to the Survey and its Questions.
+
 ## 🚀 Run the project
 
 ```bash
-python3.10 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-make run
+docker compose up -d
 ```
-
