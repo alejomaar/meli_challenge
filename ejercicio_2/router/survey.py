@@ -1,17 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import case, func, select
-from sqlalchemy.exc import IntegrityError
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from core.deps import get_current_user, get_db
+from fastapi import APIRouter, Depends, status
 from model import (
-    Answer,
-    Assessment,
-    FeedbackAnswer,
-    Option,
-    Question,
-    QuestionType,
-    Survey,
     User,
 )
 from schema.api import (
@@ -21,9 +10,13 @@ from schema.api import (
     SurveyMetricsResponse,
 )
 from schema.api.survey import SurveyAnswersPayload, SurveyBasicResponse
-from schema.llm.questions import ClosedQuestion, QuestionsStructuredOutput
-from service.agents import survey_generator_agent
-from shared.prompt import SUMMARY_TEMPLATE
+from service.survey import (
+    use_case_create_survey,
+    use_case_create_survey_answers,
+    use_case_get_survey,
+    use_case_get_survey_metrics,
+)
+from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter(
     prefix="/survey",
@@ -44,17 +37,7 @@ async def get_survey(
     Retrieve basic survey information.
     """
 
-    survey = await db.scalar(
-        select(Survey.id, Survey.topic).where(Survey.id == survey_id)
-    )
-
-    if not survey:
-        raise HTTPException(
-            status_code=404,
-            detail="Survey not found",
-        )
-
-    return survey
+    return await use_case_get_survey(survey_id, db)
 
 
 @router.post("/", response_model=CreateSurveyResponse)
@@ -72,36 +55,7 @@ async def create_survey(
         The identifier of the newly created survey.
     """
 
-    # Invoke
-    result: QuestionsStructuredOutput = survey_generator_agent(payload.topic)
-    survey = Survey(topic=payload.topic)
-
-    for q in result.questions:
-        question = Question(
-            description=q.description,
-            question_type=(
-                QuestionType.CLOSED
-                if isinstance(q, ClosedQuestion)
-                else QuestionType.OPEN
-            ),
-            hint=q.hint if isinstance(q, ClosedQuestion) else None,
-        )
-        survey.questions.append(question)
-
-        if isinstance(q, ClosedQuestion):
-            for o in q.options:
-                option = Option(
-                    text=o.text,
-                    is_correct=o.is_correct,
-                )
-                question.options.append(option)
-
-    db.add(survey)
-
-    await db.flush() 
-    await db.commit()
-
-    return CreateSurveyResponse(survey_id=survey.id)
+    return await use_case_create_survey(payload, db)
 
 
 @router.post(
@@ -132,77 +86,7 @@ async def create_survey_answers(
         The identifier of the created assessment.
     """
 
-    user_id = user.id
-    try:
-        # 1. Ensure survey exists
-        exists = await db.scalar(select(Survey.id).where(Survey.id == survey_id))
-        if not exists:
-            raise HTTPException(status_code=404, detail="Survey not found")
-
-        # 2. Create assessment (may violate uq_user_survey)
-        assessment = Assessment(user_id=user_id, survey_id=survey_id)
-        db.add(assessment)
-        await db.flush()  # constraint is checked here
-
-        # 3. Load survey questions
-        result = await db.execute(
-            select(Question.id, Question.question_type).where(
-                Question.survey_id == survey_id
-            )
-        )
-        question_map = {q.id: q.question_type for q in result}
-
-        survey_question_ids = set(question_map.keys())
-        payload_question_ids = {a.question_id for a in payload.answers}
-
-        if payload_question_ids != survey_question_ids:
-            raise HTTPException(
-                status_code=400,
-                detail="All survey questions must be answered",
-            )
-
-        # 4. Build answers
-        answers_db: list[Answer] = []
-
-        for a in payload.answers:
-            q_type = question_map[a.question_id]
-
-            if q_type == QuestionType.CLOSED and not a.selected_option_id:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Question {a.question_id} requires selected_option_id",
-                )
-
-            if q_type == QuestionType.OPEN and not a.text_answer:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Question {a.question_id} requires text_answer",
-                )
-
-            answers_db.append(
-                Answer(
-                    assessment_id=assessment.id,
-                    question_id=a.question_id,
-                    selected_option_id=a.selected_option_id,
-                    text_answer=a.text_answer,
-                )
-            )
-
-        db.add_all(answers_db)
-        await db.commit()
-
-    except IntegrityError as exc:
-
-        # PostgreSQL-safe check (constraint name)
-        if "uq_user_survey" in str(exc.orig):
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="User has already answered this survey",
-            )
-
-        raise  # unknown integrity error → rethrow
-
-    return CreateSurveyAnswersResponse(assessment_id=assessment.id)
+    return await use_case_create_survey_answers(survey_id, payload, db, user)
 
 
 @router.get(
@@ -232,80 +116,5 @@ async def get_survey_metrics(
         describing the survey results.
     """
 
-    # ---------- RANKING (Top K) ----------
 
-    avg_score = func.avg(FeedbackAnswer.score)
-
-    ranking_stmt = (
-        select(
-            User.nickname.label("user"),
-            avg_score.label("avg_score"),
-            func.dense_rank().over(order_by=avg_score.desc()).label("rank"),
-        )
-        .join(Assessment, Assessment.user_id == User.id)
-        .join(FeedbackAnswer, FeedbackAnswer.assessment_id == Assessment.id)
-        .where(Assessment.survey_id == survey_id)
-        .group_by(User.nickname)
-        .order_by(avg_score.desc())
-        .limit(ranking_size)
-    )
-
-    ranking_result = await db.execute(ranking_stmt)
-    ranking_rows = ranking_result.all()
-
-    if not ranking_rows:
-        raise HTTPException(
-            status_code=404,
-            detail="No feedback metrics found for this survey",
-        )
-
-    ranking = [
-        {
-            "user": row.user,
-            "rank": row.rank,
-            "avg_score": round(float(row.avg_score), 3),
-        }
-        for row in ranking_rows
-    ]
-
-    # ---------- SURVEY STATS FOR SUMMARY ----------
-
-    stats_stmt = (
-        select(
-            Survey.topic,
-            func.count(Question.id).label("total_questions"),
-            func.sum(
-                case(
-                    (Question.question_type == QuestionType.OPEN, 1),
-                    else_=0,
-                )
-            ).label("open_questions"),
-            func.sum(
-                case(
-                    (Question.question_type == QuestionType.CLOSED, 1),
-                    else_=0,
-                )
-            ).label("closed_questions"),
-        )
-        .join(Question, Question.survey_id == Survey.id)
-        .where(Survey.id == survey_id)
-        .group_by(Survey.topic)
-    )
-
-    stats = (await db.execute(stats_stmt)).one()
-
-    best_user = ranking[0]["user"]
-
-    # ---------- SUMMARY ----------
-    summary = SUMMARY_TEMPLATE.format(
-        topic=stats.topic,
-        total_questions=stats.total_questions,
-        open_questions=stats.open_questions,
-        closed_questions=stats.closed_questions,
-        best_user=best_user,
-    )
-
-    return SurveyMetricsResponse(
-        ranking=ranking,
-        summary=summary,
-    )
+    return await use_case_get_survey_metrics(survey_id, ranking_size, db)

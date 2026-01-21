@@ -1,11 +1,10 @@
-from langchain_openai import ChatOpenAI
-
 from core.config import settings
+from langchain_openai import ChatOpenAI
 from schema.llm.questions import QuestionsStructuredOutput
 from shared.prompt import SURVEY_GENERATOR
 
 
-def survey_generator_agent(topic: str) -> QuestionsStructuredOutput:
+def use_case_create_survey_generator(topic: str) -> QuestionsStructuredOutput:
     """
     Generate a survey question (open or multiple-choice) for a given topic.
 

@@ -192,6 +192,9 @@ Represents a single response to a question.
 **Entity**: FeedbackAnswer
 Stores educational feedback and an internal score for each answer.
 
+* **Closed questions** : score is **1** if the answer is correct, **0** if incorrect
+* **Open questions** : score ranges from  **0 to 1** , based on answer quality
+
 **Endpoint**
 
 ```

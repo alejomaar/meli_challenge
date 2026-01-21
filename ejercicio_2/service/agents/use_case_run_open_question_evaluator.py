@@ -1,12 +1,10 @@
-from langchain_openai import ChatOpenAI
-
 from core.config import settings
+from langchain_openai import ChatOpenAI
 from schema.llm.feedback_open_question import FeedbackOpenQuestion
-from schema.llm.questions import QuestionsStructuredOutput
 from shared.prompt import OPEN_QUESTION_EVALUATOR
 
 
-async def open_question_evaluator_agent(
+async def use_case_run_open_question_evaluator(
     questions_and_answers: list[str],
 ) -> list[FeedbackOpenQuestion]:
     """

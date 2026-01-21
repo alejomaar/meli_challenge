@@ -32,16 +32,5 @@ class ClosedQuestion(BaseModel):
 
 class QuestionsStructuredOutput(BaseModel):
     """Structured output containing generated survey questions."""
-    questions: List[OpenQuestion | ClosedQuestion] = Field(min_length=4, max_length=6)
-
-    @model_validator(mode="after")
-    def validate_open_and_closed(self):
-        has_open = any(isinstance(q, OpenQuestion) for q in self.questions)
-        has_closed = any(isinstance(q, ClosedQuestion) for q in self.questions)
-
-        if not has_open or not has_closed:
-            raise ValueError(
-                "The survey must contain at least one open question and one closed question"
-            )
-
-        return self
+    open_questions: list[OpenQuestion] = Field(min_length=2, max_length=3)
+    closed_questions: list[ClosedQuestion] = Field(min_length=2, max_length=3)
