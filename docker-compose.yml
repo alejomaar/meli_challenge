@@ -11,7 +11,7 @@ services:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
-      - ./data/files/backup_many.sql:/docker-entrypoint-initdb.d/backup.sql:ro
+      #- ./data/files/backup_many.sql:/docker-entrypoint-initdb.d/backup.sql:ro
 
   # ⚙️ FastAPI Backend
   backend:
