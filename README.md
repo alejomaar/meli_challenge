@@ -76,9 +76,7 @@ POST /user
 
 **Result**
 
-```md
 ![User](./img/user.png)
-```
 
 ---
 
@@ -103,9 +101,8 @@ POST /survey
 
 **Result**
 
-```md
 ![Survey](./img/survey.png)
-```
+
 
 ---
 
@@ -118,9 +115,7 @@ Questions are generated automatically when a survey is created.
 
 **Result**
 
-```md
 ![Question](./img/question.png)
-```
 
 ---
 
@@ -133,9 +128,7 @@ Options are generated automatically together with closed questions.
 
 **Result**
 
-```md
 ![Option](./img/option.png)
-```
 
 ---
 
@@ -171,9 +164,7 @@ X-User-Id: 3
 
 **Result**
 
-```md
 ![Assessment](./img/assesment.png)
-```
 
 ---
 
@@ -193,9 +184,8 @@ Represents a single response to a question.
 
 **Result**
 
-```md
 ![Answer](./img/answer.png)
-```
+
 
 ---
 
@@ -212,9 +202,9 @@ POST /assesment/{assessment_id}/feedback
 
 **Result**
 
-```md
+
 ![FeedbackAnswer](./img/feedback_answer.png)
-```
+
 
 ---
 
