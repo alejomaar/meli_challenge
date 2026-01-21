@@ -1,8 +1,8 @@
-"""creating tables
+"""create tables
 
-Revision ID: f9b8be0815c6
+Revision ID: 00160309d083
 Revises: 
-Create Date: 2026-01-20 20:03:25.754888
+Create Date: 2026-01-20 21:12:54.221089
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = 'f9b8be0815c6'
+revision: str = '00160309d083'
 down_revision: Union[str, None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -51,9 +51,8 @@ def upgrade() -> None:
     op.create_table('question',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('survey_id', sa.Integer(), nullable=False),
-    sa.Column('prompt', sa.Text(), nullable=False),
-    sa.Column('question_type', sa.String(length=20), nullable=False),
-    sa.Column('position', sa.Integer(), nullable=False),
+    sa.Column('description', sa.Text(), nullable=False),
+    sa.Column('question_type', sa.Enum('CLOSED', 'OPEN', name='question_type_enum'), nullable=False),
     sa.Column('created_at', sa.DateTime(), nullable=False),
     sa.Column('updated_at', sa.DateTime(), nullable=False),
     sa.ForeignKeyConstraint(['survey_id'], ['survey.id'], ),
@@ -72,14 +71,12 @@ def upgrade() -> None:
     op.create_table('option',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('question_id', sa.Integer(), nullable=False),
-    sa.Column('label', sa.String(length=10), nullable=False),
     sa.Column('text', sa.Text(), nullable=False),
     sa.Column('is_correct', sa.Boolean(), nullable=False),
     sa.Column('created_at', sa.DateTime(), nullable=False),
     sa.Column('updated_at', sa.DateTime(), nullable=False),
     sa.ForeignKeyConstraint(['question_id'], ['question.id'], ),
-    sa.PrimaryKeyConstraint('id'),
-    sa.UniqueConstraint('question_id', 'label', name='uq_option_label')
+    sa.PrimaryKeyConstraint('id')
     )
     op.create_table('answer',
     sa.Column('id', sa.Integer(), nullable=False),

@@ -1,10 +1,19 @@
 from datetime import datetime, timezone
 from enum import Enum
 
-from sqlalchemy import Boolean, Column, DateTime
-from sqlalchemy import Enum as SAEnum
-from sqlalchemy import Float, ForeignKey, Integer, String, Text, UniqueConstraint
-from sqlalchemy.orm import declarative_base, relationship
+from sqlalchemy import (
+    Boolean,
+    Column,
+    DateTime,
+    Enum as SAEnum,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+)
+from sqlalchemy.orm import relationship
 
 from core.model import Base
 
@@ -21,10 +30,23 @@ class Survey(Base):
     topic = Column(String(255), nullable=False)
 
     created_at = Column(DateTime, default=datetime.now(timezone.utc), nullable=False)
-    updated_at = Column(DateTime, default=datetime.now(timezone.utc), onupdate=datetime.now(timezone.utc), nullable=False)
+    updated_at = Column(
+        DateTime,
+        default=datetime.now(timezone.utc),
+        onupdate=datetime.now(timezone.utc),
+        nullable=False,
+    )
 
-    question = relationship("Question", back_populates="survey", cascade="all, delete-orphan")
-    assessment = relationship("Assessment", back_populates="survey")
+    questions = relationship(
+        "Question",
+        back_populates="survey",
+        cascade="all, delete-orphan",
+    )
+
+    assessments = relationship(
+        "Assessment",
+        back_populates="survey",
+    )
 
 
 class Question(Base):
@@ -35,15 +57,33 @@ class Question(Base):
 
     description = Column(Text, nullable=False)
     question_type = Column(
-        SAEnum(QuestionType, name="question_type_enum"), nullable=False
+        SAEnum(QuestionType, name="question_type_enum"),
+        nullable=False,
     )
 
     created_at = Column(DateTime, default=datetime.now(timezone.utc), nullable=False)
-    updated_at = Column(DateTime, default=datetime.now(timezone.utc), onupdate=datetime.now(timezone.utc), nullable=False)
+    updated_at = Column(
+        DateTime,
+        default=datetime.now(timezone.utc),
+        onupdate=datetime.now(timezone.utc),
+        nullable=False,
+    )
 
-    survey = relationship("survey", back_populates="question")
-    option = relationship("Option", back_populates="question", cascade="all, delete-orphan")
-    answer = relationship("Answer", back_populates="question")
+    survey = relationship(
+        "Survey",
+        back_populates="questions",
+    )
+
+    options = relationship(
+        "Option",
+        back_populates="question",
+        cascade="all, delete-orphan",
+    )
+
+    answers = relationship(
+        "Answer",
+        back_populates="question",
+    )
 
 
 class Option(Base):
@@ -56,12 +96,16 @@ class Option(Base):
     is_correct = Column(Boolean, nullable=False, default=False)
 
     created_at = Column(DateTime, default=datetime.now(timezone.utc), nullable=False)
-    updated_at = Column(DateTime, default=datetime.now(timezone.utc), onupdate=datetime.now(timezone.utc), nullable=False)
+    updated_at = Column(
+        DateTime,
+        default=datetime.now(timezone.utc),
+        onupdate=datetime.now(timezone.utc),
+        nullable=False,
+    )
 
-    question = relationship("Question", back_populates="option")
-
-    __table_args__ = (
-        UniqueConstraint("question_id", "label", name="uq_option_label"),
+    question = relationship(
+        "Question",
+        back_populates="options",
     )
 
 
@@ -72,9 +116,17 @@ class User(Base):
     nickname = Column(String(100), nullable=False, unique=True)
 
     created_at = Column(DateTime, default=datetime.now(timezone.utc), nullable=False)
-    updated_at = Column(DateTime, default=datetime.now(timezone.utc), onupdate=datetime.now(timezone.utc), nullable=False)
+    updated_at = Column(
+        DateTime,
+        default=datetime.now(timezone.utc),
+        onupdate=datetime.now(timezone.utc),
+        nullable=False,
+    )
 
-    assessment = relationship("Assessment", back_populates="user")
+    assessments = relationship(
+        "Assessment",
+        back_populates="user",
+    )
 
 
 class Assessment(Base):
@@ -91,13 +143,35 @@ class Assessment(Base):
     finished_at = Column(DateTime)
 
     created_at = Column(DateTime, default=datetime.now(timezone.utc), nullable=False)
-    updated_at = Column(DateTime, default=datetime.now(timezone.utc), onupdate=datetime.now(timezone.utc), nullable=False)
+    updated_at = Column(
+        DateTime,
+        default=datetime.now(timezone.utc),
+        onupdate=datetime.now(timezone.utc),
+        nullable=False,
+    )
 
-    user = relationship("User", back_populates="assessment")
-    survey = relationship("survey", back_populates="assessment")
+    user = relationship(
+        "User",
+        back_populates="assessments",
+    )
 
-    answer = relationship("Answer", back_populates="assessment", cascade="all, delete-orphan")
-    feedback = relationship("Feedback", back_populates="assessment", uselist=False, cascade="all, delete-orphan")
+    survey = relationship(
+        "Survey",
+        back_populates="assessments",
+    )
+
+    answers = relationship(
+        "Answer",
+        back_populates="assessment",
+        cascade="all, delete-orphan",
+    )
+
+    feedback = relationship(
+        "Feedback",
+        back_populates="assessment",
+        uselist=False,
+        cascade="all, delete-orphan",
+    )
 
 
 class Answer(Base):
@@ -116,10 +190,23 @@ class Answer(Base):
     score = Column(Float)
 
     created_at = Column(DateTime, default=datetime.now(timezone.utc), nullable=False)
-    updated_at = Column(DateTime, default=datetime.now(timezone.utc), onupdate=datetime.now(timezone.utc), nullable=False)
+    updated_at = Column(
+        DateTime,
+        default=datetime.now(timezone.utc),
+        onupdate=datetime.now(timezone.utc),
+        nullable=False,
+    )
 
-    assessment = relationship("Assessment", back_populates="answer")
-    question = relationship("Question", back_populates="answer")
+    assessment = relationship(
+        "Assessment",
+        back_populates="answers",
+    )
+
+    question = relationship(
+        "Question",
+        back_populates="answers",
+    )
+
     option = relationship("Option")
 
 
@@ -132,6 +219,14 @@ class Feedback(Base):
     summary_text = Column(Text, nullable=False)
 
     created_at = Column(DateTime, default=datetime.now(timezone.utc), nullable=False)
-    updated_at = Column(DateTime, default=datetime.now(timezone.utc), onupdate=datetime.now(timezone.utc), nullable=False)
+    updated_at = Column(
+        DateTime,
+        default=datetime.now(timezone.utc),
+        onupdate=datetime.now(timezone.utc),
+        nullable=False,
+    )
 
-    assessment = relationship("Assessment", back_populates="feedback")
+    assessment = relationship(
+        "Assessment",
+        back_populates="feedback",
+    )
