@@ -278,6 +278,8 @@ User → Assessment → Answers → FeedbackAnswer, all tied back to the Survey 
 
 ## 🚀 Run the project
 
+It runs the backend and the PostgreSQL database with the data created in this exercise.
+
 ```bash
 docker compose up -d
 ```
