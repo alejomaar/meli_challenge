@@ -44,21 +44,8 @@ async def create_survey(db: AsyncSession = Depends(get_db)):
     chain = prompt | structured_llm
     topic = "Climate change"
     # Invoke
-    # result = chain.invoke({"topic": topic})
+    result: QuestionsStructuredOutput = chain.invoke({"topic": topic})
     survey = Survey(topic=topic)
-    result = QuestionsStructuredOutput(
-        questions=[
-            OpenQuestion(description="testing"),
-            OpenQuestion(description="testing 2"),
-            ClosedQuestion(
-                description="testing 2",
-                options=[
-                    llmOption(text="prueeba", is_correct=False),
-                    llmOption(text="prueeba", is_correct=True),
-                ],
-            ),
-        ]
-    )
 
     for q in result.questions:
         question = Question(
@@ -78,16 +65,11 @@ async def create_survey(db: AsyncSession = Depends(get_db)):
                     is_correct=o.is_correct,
                 )
                 question.options.append(option)
-    print("Before add:", db.in_transaction())
 
     db.add(survey)
 
-    print(survey.__dict__)
-    print([q.__dict__ for q in survey.questions])
-    await db.flush()  # ← forces INSERTs
-    print("After add:", db.in_transaction())
+    await db.flush() 
     await db.commit()
-    # await db.refresh(survey)
 
     return {"status": "ok"}
 
