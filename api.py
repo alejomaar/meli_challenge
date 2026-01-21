@@ -2,11 +2,12 @@ import logging
 
 from fastapi import FastAPI
 
-from router import assesment, survey
+from router import assesment, survey, user
 
 app: FastAPI = FastAPI(
     title="A Cloud Run API",
 )
+app.include_router(user.router)
 app.include_router(survey.router)
 app.include_router(assesment.router)
 

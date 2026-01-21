@@ -1,12 +1,9 @@
-from fastapi import APIRouter, Depends, FastAPI, HTTPException, status
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_openai import ChatOpenAI
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import case, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.deps import get_db
-from crud import CrudSurvey
+from core.deps import get_current_user, get_db
 from model import (
     Answer,
     Assessment,
@@ -17,55 +14,67 @@ from model import (
     Survey,
     User,
 )
-from schema.api.survey import SurveyAnswersPayload
-from schema.llm.feedback_open_question import FeedbackOpenQuestion
-from schema.llm.questions import ClosedQuestion, OpenQuestion
-from schema.llm.questions import Option as llmOption
-from schema.llm.questions import QuestionsStructuredOutput
+from schema.api import (
+    CreateSurveyAnswersResponse,
+    CreateSurveyPayload,
+    CreateSurveyResponse,
+    SurveyMetricsResponse,
+)
+from schema.api.survey import SurveyAnswersPayload, SurveyBasicResponse
+from schema.llm.questions import ClosedQuestion, QuestionsStructuredOutput
+from service.agents import survey_generator_agent
+from shared.prompt import SUMMARY_TEMPLATE
 
 router = APIRouter(
     prefix="/survey",
     tags=["survey"]
 )
 
-@router.get("/")
-async def get_survey():
-    """Retrieve survey data - Not Yet Implemented"""
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="GET method for /survey is not implemented yet."
+
+@router.get(
+    "/{survey_id}",
+    status_code=status.HTTP_200_OK,
+    response_model=SurveyBasicResponse,
+)
+async def get_survey(
+    survey_id: int,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Retrieve basic survey information.
+    """
+
+    survey = await db.scalar(
+        select(Survey.id, Survey.topic).where(Survey.id == survey_id)
     )
 
+    if not survey:
+        raise HTTPException(
+            status_code=404,
+            detail="Survey not found",
+        )
 
-@router.post("/")
-async def create_survey(db: AsyncSession = Depends(get_db)):
-    """Create a new survey - Not Yet Implemented"""
-    llm = ChatOpenAI(
-        model="gpt-4o-mini",
-        temperature=0
-    )
-    crud_survey = CrudSurvey(db)
-    structured_llm = llm.with_structured_output(QuestionsStructuredOutput)
+    return survey
 
-    # Prompt
-    prompt = ChatPromptTemplate.from_messages(
-        [
-            (
-                "system",
-                "You are a friendly quiz generator. Given a topic, create either an open question "
-                "or a multiple-choice question. Never repeat questions. Keep the tone clear, "
-                "engaging, and friendly.",
-            ),
-            ("human", "{topic}"),
-        ]
-    )
 
-    # Chain
-    chain = prompt | structured_llm
-    topic = "Elementary maths"
+@router.post("/", response_model=CreateSurveyResponse)
+async def create_survey(
+    payload: CreateSurveyPayload, db: AsyncSession = Depends(get_db)
+):
+    """
+    Create a new survey.
+
+    A survey is generated automatically based on a predefined topic.
+    The survey includes open and closed questions and is stored
+    together with all its questions and options.
+
+    Returns:
+        The identifier of the newly created survey.
+    """
+
     # Invoke
-    result: QuestionsStructuredOutput = chain.invoke({"topic": topic})
-    survey = Survey(topic=topic)
+    result: QuestionsStructuredOutput = survey_generator_agent(payload.topic)
+    survey = Survey(topic=payload.topic)
 
     for q in result.questions:
         question = Question(
@@ -92,24 +101,38 @@ async def create_survey(db: AsyncSession = Depends(get_db)):
     await db.flush() 
     await db.commit()
 
-    return {"status": "ok"}
+    return CreateSurveyResponse(survey_id=survey.id)
 
 
-@router.post("/{survey_id}/answers", status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/{survey_id}/answers",
+    status_code=status.HTTP_201_CREATED,
+    response_model=CreateSurveyAnswersResponse,
+)
 async def create_survey_answers(
     survey_id: int,
     payload: SurveyAnswersPayload,
     db: AsyncSession = Depends(get_db),
-) -> dict[str, int]:
+    user: User = Depends(get_current_user),
+):
     """
-    Submit all answers for a survey.
+    Submit answers for a survey.
 
-    Creates an assessment for the user and stores one answer per survey question.
-    Rejects the request if the survey was already answered by the user.
+    This endpoint records a complete set of answers for a given survey
+    on behalf of the authenticated user. Each question in the survey
+    must be answered exactly once.
+
+    A user can only submit answers to the same survey one time.
+
+    Parameters:
+        survey_id: Identifier of the survey being answered.
+        payload: Collection of answers provided by the user.
+
+    Returns:
+        The identifier of the created assessment.
     """
 
-    user_id = 2  # TODO: replace with authenticated user
-
+    user_id = user.id
     try:
         # 1. Ensure survey exists
         exists = await db.scalar(select(Survey.id).where(Survey.id == survey_id))
@@ -179,19 +202,34 @@ async def create_survey_answers(
 
         raise  # unknown integrity error → rethrow
 
-    return {
-        "assessment_id": assessment.id,
-    }
+    return CreateSurveyAnswersResponse(assessment_id=assessment.id)
 
 
-@router.get("/{survey_id}/metrics", status_code=status.HTTP_200_OK)
+@router.get(
+    "/{survey_id}/metrics",
+    status_code=status.HTTP_200_OK,
+    response_model=SurveyMetricsResponse,
+)
 async def get_survey_metrics(
     survey_id: int,
     ranking_size: int,
     db: AsyncSession = Depends(get_db),
-) -> dict:
+):
     """
-    Return ranking metrics and summary for a survey.
+    Retrieve performance metrics for a survey.
+
+    This endpoint computes a ranking of users based on their
+    average feedback score for the survey. It also provides
+    a human-readable summary describing the survey structure
+    and overall best performance.
+
+    Parameters:
+        survey_id: Identifier of the survey.
+        ranking_size: Maximum number of top-ranked users to return.
+
+    Returns:
+        A ranking of users with their average scores and a summary
+        describing the survey results.
     """
 
     # ---------- RANKING (Top K) ----------
@@ -259,15 +297,15 @@ async def get_survey_metrics(
     best_user = ranking[0]["user"]
 
     # ---------- SUMMARY ----------
-
-    summary = (
-        f"Se obtuvo un ranking para la encuesta '{stats.topic}', con un total de "
-        f"{stats.total_questions} preguntas ({stats.open_questions} abiertas y "
-        f"{stats.closed_questions} cerradas). "
-        f"El mejor desempeño general fue de {best_user}."
+    summary = SUMMARY_TEMPLATE.format(
+        topic=stats.topic,
+        total_questions=stats.total_questions,
+        open_questions=stats.open_questions,
+        closed_questions=stats.closed_questions,
+        best_user=best_user,
     )
 
-    return {
-        "ranking": ranking,
-        "summary": summary,
-    }
+    return SurveyMetricsResponse(
+        ranking=ranking,
+        summary=summary,
+    )

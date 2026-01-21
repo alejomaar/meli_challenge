@@ -1,8 +1,13 @@
 from typing import AsyncGenerator
 
-from core.config import settings
+from fastapi import Depends, Header, HTTPException
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-from sqlalchemy.pool import AsyncAdaptedQueuePool
+
+from core.config import settings
+from model import (
+    User,
+)
 
 DATABASE_URL = (
     f"postgresql+asyncpg://{settings.DB_USER}:{settings.DB_PASS}"
@@ -41,3 +46,17 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
             await session.rollback()
             raise
 
+
+async def get_current_user(
+    x_user_id: int = Header(..., alias="X-User-Id"),
+    db: AsyncSession = Depends(get_db),
+) -> User:
+    user = await db.scalar(select(User).where(User.id == x_user_id))
+
+    if not user:
+        raise HTTPException(
+            status_code=401,
+            detail="User does not exist",
+        )
+
+    return user

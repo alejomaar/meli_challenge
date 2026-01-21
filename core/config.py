@@ -1,6 +1,8 @@
 import os
 from pathlib import Path
+
 from pydantic import BaseModel
+
 
 class Settings(BaseModel):
     # Database and external config
@@ -9,6 +11,7 @@ class Settings(BaseModel):
     DB_PASS: str = "root"
     DB_NAME: str = "postgres"
     DB_PORT: int = 5432
+    GEN_AI_MODEL: str = "gpt-4o-mini"
 
 
 settings = Settings()

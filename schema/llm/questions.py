@@ -1,22 +1,25 @@
-from typing import List, Literal, Union
+from typing import List
 
 from pydantic import BaseModel, Field, model_validator
 
 
 class Option(BaseModel):
+    """Single option for a closed (multiple-choice) question."""
     text: str
     is_correct: bool
 
 
 class OpenQuestion(BaseModel):
+    """Open-ended survey question."""
     description: str
 
 
 class ClosedQuestion(BaseModel):
+    """Multiple-choice question with a guided explanation."""
     description: str
     hint: str = Field(
         ...,
-        description="Short Guided explanation revealing the correct answer and explaining why the user's choice was incorrect.",
+        description="Guided explanation revealing the correct answer and why other choices are incorrect.",
     )
     options: List[Option] = Field(min_length=2, max_length=4)
 
@@ -28,4 +31,5 @@ class ClosedQuestion(BaseModel):
 
 
 class QuestionsStructuredOutput(BaseModel):
-    questions: List[OpenQuestion| ClosedQuestion] = Field(min_length=4, max_length=4)
+    """Structured output containing generated survey questions."""
+    questions: List[OpenQuestion | ClosedQuestion] = Field(min_length=4, max_length=8)
