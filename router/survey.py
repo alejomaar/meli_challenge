@@ -6,7 +6,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from core.deps import get_db
 from crud import CrudSurvey
 from model import Option, Question, QuestionType, Survey
-from schema.llm.questions import ClosedQuestion, OpenQuestion, QuestionsStructuredOutput
+from schema.llm.questions import ClosedQuestion, OpenQuestion
+from schema.llm.questions import Option as llmOption
+from schema.llm.questions import QuestionsStructuredOutput
 
 router = APIRouter(
     prefix="/survey",
@@ -48,6 +50,13 @@ async def create_survey(db: AsyncSession = Depends(get_db)):
         questions=[
             OpenQuestion(description="testing"),
             OpenQuestion(description="testing 2"),
+            ClosedQuestion(
+                description="testing 2",
+                options=[
+                    llmOption(text="prueeba", is_correct=False),
+                    llmOption(text="prueeba", is_correct=True),
+                ],
+            ),
         ]
     )
 
@@ -72,14 +81,13 @@ async def create_survey(db: AsyncSession = Depends(get_db)):
     print("Before add:", db.in_transaction())
 
     db.add(survey)
-    
 
     print(survey.__dict__)
     print([q.__dict__ for q in survey.questions])
     await db.flush()  # ← forces INSERTs
     print("After add:", db.in_transaction())
     await db.commit()
-    #await db.refresh(survey)
+    # await db.refresh(survey)
 
     return {"status": "ok"}
 
