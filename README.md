@@ -221,8 +221,28 @@ GET /survey/{survey_id}/metrics?ranking_size=3
 
 **Result**
 
-![Survey Metrics](./img/survey.png)
-
+```json
+{
+  "ranking": [
+    {
+      "user": "pedro",
+      "rank": 1,
+      "avg_score": 0.383
+    },
+    {
+      "user": "sofia",
+      "rank": 2,
+      "avg_score": 0.35
+    },
+    {
+      "user": "maria",
+      "rank": 3,
+      "avg_score": 0.217
+    }
+  ],
+  "summary": "Se obtuvo un ranking para la encuesta 'matematicas', con un total de 6 preguntas (3 abiertas y 3 cerradas). El mejor desempeño general fue de pedro."
+}
+```
 ---
 
 ## 🧠 Why this design works
