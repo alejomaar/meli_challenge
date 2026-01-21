@@ -2,7 +2,7 @@ from fastapi import APIRouter, FastAPI, HTTPException, status
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
 
-from schema.llm.quiz import Option, QuizItem
+from schema.llm.questions import QuestionsStructuredOutput
 
 router = APIRouter(
     prefix="/survey",
@@ -26,11 +26,11 @@ async def create_survey():
     )
 
     # Wrap LLM with structured output
-    structured_llm = llm.with_structured_output(QuizItem)
+    structured_llm = llm.with_structured_output(QuestionsStructuredOutput)
 
     # Prompt
     prompt = ChatPromptTemplate.from_messages([
-        ("system", "You are a quiz generator. Return a multiple-choice question."),
+        ("system", "You are a quiz generator. Return a multiple-choice question and open questions"),
         ("human", "{topic}")
     ])
 
@@ -55,4 +55,3 @@ async def delete_survey(survey_id: int):
         status_code=status.HTTP_501_NOT_IMPLEMENTED,
         detail=f"DELETE method for survey {survey_id} is not implemented yet."
     )
-

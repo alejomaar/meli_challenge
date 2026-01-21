@@ -1,20 +1,17 @@
-from datetime import datetime
-from datetime import timezone
+from datetime import datetime, timezone
+from enum import Enum
 
-from sqlalchemy import (
-    Boolean,
-    Column,
-    DateTime,
-    Float,
-    ForeignKey,
-    Integer,
-    String,
-    Text,
-    UniqueConstraint,
-)
+from sqlalchemy import Boolean, Column, DateTime
+from sqlalchemy import Enum as SAEnum
+from sqlalchemy import Float, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import declarative_base, relationship
 
 from core.model import Base
+
+
+class QuestionType(str, Enum):
+    CLOSED = "CLOSED"
+    OPEN = "OPEN"
 
 
 class Survey(Base):
@@ -36,9 +33,10 @@ class Question(Base):
     id = Column(Integer, primary_key=True)
     survey_id = Column(Integer, ForeignKey("survey.id"), nullable=False)
 
-    prompt = Column(Text, nullable=False)
-    question_type = Column(String(20), nullable=False)
-    position = Column(Integer, nullable=False)
+    description = Column(Text, nullable=False)
+    question_type = Column(
+        SAEnum(QuestionType, name="question_type_enum"), nullable=False
+    )
 
     created_at = Column(DateTime, default=datetime.now(timezone.utc), nullable=False)
     updated_at = Column(DateTime, default=datetime.now(timezone.utc), onupdate=datetime.now(timezone.utc), nullable=False)
@@ -54,7 +52,6 @@ class Option(Base):
     id = Column(Integer, primary_key=True)
     question_id = Column(Integer, ForeignKey("question.id"), nullable=False)
 
-    label = Column(String(10), nullable=False)
     text = Column(Text, nullable=False)
     is_correct = Column(Boolean, nullable=False, default=False)
 
