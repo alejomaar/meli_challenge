@@ -4,11 +4,13 @@ from langchain_openai import ChatOpenAI
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from core.deps import get_db
 from crud import CrudSurvey
 from model import Answer, Assessment, Option, Question, QuestionType, Survey
 from schema.api.survey import SurveyAnswersPayload
+from schema.llm.feedback_open_question import FeedbackOpenQuestion
 from schema.llm.questions import ClosedQuestion, OpenQuestion
 from schema.llm.questions import Option as llmOption
 from schema.llm.questions import QuestionsStructuredOutput
@@ -38,14 +40,21 @@ async def create_survey(db: AsyncSession = Depends(get_db)):
     structured_llm = llm.with_structured_output(QuestionsStructuredOutput)
 
     # Prompt
-    prompt = ChatPromptTemplate.from_messages([
-        ("system", "You are a quiz generator. Return a multiple-choice question and open questions"),
-        ("human", "{topic}")
-    ])
+    prompt = ChatPromptTemplate.from_messages(
+        [
+            (
+                "system",
+                "You are a friendly quiz generator. Given a topic, create either an open question "
+                "or a multiple-choice question. Never repeat questions. Keep the tone clear, "
+                "engaging, and friendly.",
+            ),
+            ("human", "{topic}"),
+        ]
+    )
 
     # Chain
     chain = prompt | structured_llm
-    topic = "Climate change"
+    topic = "Elementary maths"
     # Invoke
     result: QuestionsStructuredOutput = chain.invoke({"topic": topic})
     survey = Survey(topic=topic)
@@ -58,6 +67,7 @@ async def create_survey(db: AsyncSession = Depends(get_db)):
                 if isinstance(q, ClosedQuestion)
                 else QuestionType.OPEN
             ),
+            hint=q.hint if isinstance(q, ClosedQuestion) else None,
         )
         survey.questions.append(question)
 
@@ -166,11 +176,99 @@ async def create_survey_answers(
     }
 
 
-@router.delete("/{survey_id}")
-async def delete_survey(survey_id: int):
-    """Delete a survey - Not Yet Implemented"""
+@router.post("/{assessment_id}/feedback", status_code=status.HTTP_201_CREATED)
+async def create_survey_feedback(
+    assessment_id: int,
+    db: AsyncSession = Depends(get_db),
+) -> list[dict]:
+    """
+    Generate feedback for all answers in an assessment.
+    Open questions are evaluated by the LLM.
+    Closed questions use correctness + hint.
+    """
 
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail=f"DELETE method for survey {survey_id} is not implemented yet."
+    result = await db.execute(
+        select(Answer)
+        .join(Assessment)
+        .join(Question)
+        .options(
+            selectinload(Answer.question),
+            selectinload(Answer.option),
+        )
+        .where(Assessment.id == assessment_id)
     )
+
+    answers = result.scalars().all()
+
+    if not answers:
+        raise HTTPException(
+            status_code=404, detail="No answers found for this assessment"
+        )
+
+    open_answers = [a for a in answers if a.question.question_type == QuestionType.OPEN]
+    closed_answers = [
+        a for a in answers if a.question.question_type == QuestionType.CLOSED
+    ]
+
+    feedback_results: list[dict] = []
+
+    # -------- OPEN QUESTIONS (LLM) --------
+
+    if open_answers:
+        llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+
+        prompt = ChatPromptTemplate.from_messages(
+            [
+                (
+                    "system",
+                    "You are an evaluator. Given a question and a user's answer, "
+                    "score how good the answer is on a scale from 0 to 1. "
+                    "Be encouraging and focus on strengths.",
+                ),
+                ("human", "{question_and_answer}"),
+            ]
+        )
+
+        structured_llm = llm.with_structured_output(FeedbackOpenQuestion)
+
+        chain = prompt | structured_llm
+
+        batch_inputs = [
+            {
+                "question_and_answer": (
+                    f"Question: {a.question.description}\n"
+                    f"User answer: {a.text_answer}"
+                )
+            }
+            for a in open_answers
+        ]
+
+        results = await chain.abatch(batch_inputs)
+
+        for answer, feedback in zip(open_answers, results):
+            feedback_results.append(
+                {
+                    "answer_id": answer.id,
+                    "score": feedback.score,
+                    "feedback": feedback.reason,
+                }
+            )
+
+    # -------- CLOSED QUESTIONS (RULE-BASED) --------
+
+    for answer in closed_answers:
+        is_correct = bool(answer.option and answer.option.is_correct)
+
+        feedback_results.append(
+            {
+                "answer_id": answer.id,
+                "score": 1.0 if is_correct else 0.0,
+                "feedback": (
+                    "¡Respuesta correcta! Buen trabajo 🎉"
+                    if is_correct
+                    else answer.question.hint
+                ),
+            }
+        )
+
+    return feedback_results

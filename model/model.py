@@ -1,18 +1,9 @@
 from datetime import datetime, timezone
 from enum import Enum
 
-from sqlalchemy import (
-    Boolean,
-    Column,
-    DateTime,
-    Enum as SAEnum,
-    Float,
-    ForeignKey,
-    Integer,
-    String,
-    Text,
-    UniqueConstraint,
-)
+from sqlalchemy import Boolean, Column, DateTime
+from sqlalchemy import Enum as SAEnum
+from sqlalchemy import Float, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import relationship
 
 from core.model import Base
@@ -53,6 +44,7 @@ class Question(Base):
     survey_id = Column(Integer, ForeignKey("survey.id"), nullable=False)
 
     description = Column(Text, nullable=False)
+    hint = Column(Text)
     question_type = Column(
         SAEnum(QuestionType, name="question_type_enum"),
         nullable=False,
@@ -188,4 +180,46 @@ class Feedback(Base):
     assessment = relationship(
         "Assessment",
         back_populates="feedback",
+    )
+
+
+class FeedbackAnswer(Base):
+    __tablename__ = "feedback_answer"
+    __table_args__ = (
+        UniqueConstraint("assessment_id", "answer_id", name="uq_feedback_answer"),
+    )
+
+    assessment_id = Column(
+        Integer,
+        ForeignKey("assessment.id"),
+        nullable=False,
+    )
+    answer_id = Column(
+        Integer,
+        ForeignKey("answer.id"),
+        nullable=False,
+    )
+
+    feedback = Column(Text, nullable=False)
+    score = Column(
+        Float,
+        nullable=False,
+        doc="Score for the answer, between 0 and 1",
+    )
+
+    created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
+    updated_at = Column(
+        DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False
+    )
+
+    # Relationships
+    assessment = relationship(
+        "Assessment",
+        backref="feedback_answers",
+    )
+
+    answer = relationship(
+        "Answer",
+        backref="feedback",
+        uselist=False,
     )

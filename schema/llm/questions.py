@@ -14,6 +14,10 @@ class OpenQuestion(BaseModel):
 
 class ClosedQuestion(BaseModel):
     description: str
+    hint: str = Field(
+        ...,
+        description="Short Guided explanation revealing the correct answer and explaining why the user's choice was incorrect.",
+    )
     options: List[Option] = Field(min_length=2, max_length=4)
 
     @model_validator(mode="after")
@@ -24,4 +28,4 @@ class ClosedQuestion(BaseModel):
 
 
 class QuestionsStructuredOutput(BaseModel):
-    questions: List[OpenQuestion| ClosedQuestion] = Field(min_length=2, max_length=3)
+    questions: List[OpenQuestion| ClosedQuestion] = Field(min_length=4, max_length=4)
