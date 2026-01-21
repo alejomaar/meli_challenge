@@ -159,9 +159,6 @@ class Answer(Base):
     selected_option_id = Column(Integer, ForeignKey("option.id"))
     text_answer = Column(Text)
 
-    is_correct = Column(Boolean)
-    score = Column(Float)
-
     created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
     updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False)
 
