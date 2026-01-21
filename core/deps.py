@@ -16,7 +16,7 @@ engine = create_async_engine(
     pool_timeout=5,
     pool_recycle=30,
     pool_pre_ping=True,
-    echo=False,
+    echo=True,
 )
 
 # Create async session factory

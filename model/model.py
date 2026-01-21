@@ -18,6 +18,10 @@ from sqlalchemy.orm import relationship
 from core.model import Base
 
 
+def utcnow():
+    return datetime.now(timezone.utc)
+
+
 class QuestionType(str, Enum):
     CLOSED = "CLOSED"
     OPEN = "OPEN"
@@ -26,16 +30,10 @@ class QuestionType(str, Enum):
 class Survey(Base):
     __tablename__ = "survey"
 
-    id = Column(Integer, primary_key=True)
     topic = Column(String(255), nullable=False)
 
-    created_at = Column(DateTime, default=datetime.now(timezone.utc), nullable=False)
-    updated_at = Column(
-        DateTime,
-        default=datetime.now(timezone.utc),
-        onupdate=datetime.now(timezone.utc),
-        nullable=False,
-    )
+    created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False)
 
     questions = relationship(
         "Question",
@@ -52,7 +50,6 @@ class Survey(Base):
 class Question(Base):
     __tablename__ = "question"
 
-    id = Column(Integer, primary_key=True)
     survey_id = Column(Integer, ForeignKey("survey.id"), nullable=False)
 
     description = Column(Text, nullable=False)
@@ -61,13 +58,8 @@ class Question(Base):
         nullable=False,
     )
 
-    created_at = Column(DateTime, default=datetime.now(timezone.utc), nullable=False)
-    updated_at = Column(
-        DateTime,
-        default=datetime.now(timezone.utc),
-        onupdate=datetime.now(timezone.utc),
-        nullable=False,
-    )
+    created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False)
 
     survey = relationship(
         "Survey",
@@ -89,19 +81,13 @@ class Question(Base):
 class Option(Base):
     __tablename__ = "option"
 
-    id = Column(Integer, primary_key=True)
     question_id = Column(Integer, ForeignKey("question.id"), nullable=False)
 
     text = Column(Text, nullable=False)
     is_correct = Column(Boolean, nullable=False, default=False)
 
-    created_at = Column(DateTime, default=datetime.now(timezone.utc), nullable=False)
-    updated_at = Column(
-        DateTime,
-        default=datetime.now(timezone.utc),
-        onupdate=datetime.now(timezone.utc),
-        nullable=False,
-    )
+    created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False)
 
     question = relationship(
         "Question",
@@ -112,16 +98,10 @@ class Option(Base):
 class User(Base):
     __tablename__ = "user"
 
-    id = Column(Integer, primary_key=True)
     nickname = Column(String(100), nullable=False, unique=True)
 
-    created_at = Column(DateTime, default=datetime.now(timezone.utc), nullable=False)
-    updated_at = Column(
-        DateTime,
-        default=datetime.now(timezone.utc),
-        onupdate=datetime.now(timezone.utc),
-        nullable=False,
-    )
+    created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False)
 
     assessments = relationship(
         "Assessment",
@@ -135,20 +115,14 @@ class Assessment(Base):
         UniqueConstraint("user_id", "survey_id", name="uq_user_survey"),
     )
 
-    id = Column(Integer, primary_key=True)
     user_id = Column(Integer, ForeignKey("user.id"), nullable=False)
     survey_id = Column(Integer, ForeignKey("survey.id"), nullable=False)
 
-    started_at = Column(DateTime, default=datetime.now(timezone.utc), nullable=False)
-    finished_at = Column(DateTime)
+    started_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
+    finished_at = Column(DateTime(timezone=True))
 
-    created_at = Column(DateTime, default=datetime.now(timezone.utc), nullable=False)
-    updated_at = Column(
-        DateTime,
-        default=datetime.now(timezone.utc),
-        onupdate=datetime.now(timezone.utc),
-        nullable=False,
-    )
+    created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False)
 
     user = relationship(
         "User",
@@ -180,7 +154,6 @@ class Answer(Base):
         UniqueConstraint("assessment_id", "question_id", name="uq_answer_per_question"),
     )
 
-    id = Column(Integer, primary_key=True)
     assessment_id = Column(Integer, ForeignKey("assessment.id"), nullable=False)
     question_id = Column(Integer, ForeignKey("question.id"), nullable=False)
     selected_option_id = Column(Integer, ForeignKey("option.id"))
@@ -189,13 +162,8 @@ class Answer(Base):
     is_correct = Column(Boolean)
     score = Column(Float)
 
-    created_at = Column(DateTime, default=datetime.now(timezone.utc), nullable=False)
-    updated_at = Column(
-        DateTime,
-        default=datetime.now(timezone.utc),
-        onupdate=datetime.now(timezone.utc),
-        nullable=False,
-    )
+    created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False)
 
     assessment = relationship(
         "Assessment",
@@ -213,18 +181,12 @@ class Answer(Base):
 class Feedback(Base):
     __tablename__ = "feedback"
 
-    id = Column(Integer, primary_key=True)
     assessment_id = Column(Integer, ForeignKey("assessment.id"), nullable=False, unique=True)
 
     summary_text = Column(Text, nullable=False)
 
-    created_at = Column(DateTime, default=datetime.now(timezone.utc), nullable=False)
-    updated_at = Column(
-        DateTime,
-        default=datetime.now(timezone.utc),
-        onupdate=datetime.now(timezone.utc),
-        nullable=False,
-    )
+    created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False)
 
     assessment = relationship(
         "Assessment",

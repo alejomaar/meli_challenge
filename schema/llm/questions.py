@@ -9,12 +9,10 @@ class Option(BaseModel):
 
 
 class OpenQuestion(BaseModel):
-    type: Literal["OPEN"]
     description: str
 
 
 class ClosedQuestion(BaseModel):
-    type: Literal["CLOSED"]
     description: str
     options: List[Option] = Field(min_length=2, max_length=4)
 
@@ -23,6 +21,7 @@ class ClosedQuestion(BaseModel):
         if sum(o.is_correct for o in self.options) != 1:
             raise ValueError("Exactly one option must be correct")
         return self
+
 
 class QuestionsStructuredOutput(BaseModel):
     questions: List[OpenQuestion| ClosedQuestion] = Field(min_length=2, max_length=3)
