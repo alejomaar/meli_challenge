@@ -231,9 +231,7 @@ GET /survey/{survey_id}/metrics?ranking_size=3
 
 **Result**
 
-```md
 ![Survey Metrics](./img/survey.png)
-```
 
 ---
 
