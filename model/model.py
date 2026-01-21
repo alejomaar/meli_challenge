@@ -24,7 +24,9 @@ class Survey(Base):
     topic = Column(String(255), nullable=False)
 
     created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
-    updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False)
+    updated_at = Column(
+        DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False
+    )
 
     questions = relationship(
         "Question",
@@ -51,7 +53,9 @@ class Question(Base):
     )
 
     created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
-    updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False)
+    updated_at = Column(
+        DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False
+    )
 
     survey = relationship(
         "Survey",
@@ -79,7 +83,9 @@ class Option(Base):
     is_correct = Column(Boolean, nullable=False, default=False)
 
     created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
-    updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False)
+    updated_at = Column(
+        DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False
+    )
 
     question = relationship(
         "Question",
@@ -93,7 +99,9 @@ class User(Base):
     nickname = Column(String(100), nullable=False, unique=True)
 
     created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
-    updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False)
+    updated_at = Column(
+        DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False
+    )
 
     assessments = relationship(
         "Assessment",
@@ -103,9 +111,7 @@ class User(Base):
 
 class Assessment(Base):
     __tablename__ = "assessment"
-    __table_args__ = (
-        UniqueConstraint("user_id", "survey_id", name="uq_user_survey"),
-    )
+    __table_args__ = (UniqueConstraint("user_id", "survey_id", name="uq_user_survey"),)
 
     user_id = Column(Integer, ForeignKey("user.id"), nullable=False)
     survey_id = Column(Integer, ForeignKey("survey.id"), nullable=False)
@@ -114,7 +120,9 @@ class Assessment(Base):
     finished_at = Column(DateTime(timezone=True))
 
     created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
-    updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False)
+    updated_at = Column(
+        DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False
+    )
 
     user = relationship(
         "User",
@@ -152,7 +160,9 @@ class Answer(Base):
     text_answer = Column(Text)
 
     created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
-    updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False)
+    updated_at = Column(
+        DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False
+    )
 
     assessment = relationship(
         "Assessment",
@@ -170,12 +180,16 @@ class Answer(Base):
 class Feedback(Base):
     __tablename__ = "feedback"
 
-    assessment_id = Column(Integer, ForeignKey("assessment.id"), nullable=False, unique=True)
+    assessment_id = Column(
+        Integer, ForeignKey("assessment.id"), nullable=False, unique=True
+    )
 
     summary_text = Column(Text, nullable=False)
 
     created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
-    updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False)
+    updated_at = Column(
+        DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False
+    )
 
     assessment = relationship(
         "Assessment",
@@ -210,16 +224,4 @@ class FeedbackAnswer(Base):
     created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
     updated_at = Column(
         DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False
-    )
-
-    # Relationships
-    assessment = relationship(
-        "Assessment",
-        backref="feedback_answers",
-    )
-
-    answer = relationship(
-        "Answer",
-        backref="feedback",
-        uselist=False,
     )

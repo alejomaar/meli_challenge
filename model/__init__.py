@@ -9,4 +9,5 @@ from .model import (
     QuestionType,
     Survey,
     User,
+    FeedbackAnswer
 )

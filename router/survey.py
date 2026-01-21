@@ -1,14 +1,22 @@
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, status
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
-from sqlalchemy import select
+from sqlalchemy import case, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from core.deps import get_db
 from crud import CrudSurvey
-from model import Answer, Assessment, Option, Question, QuestionType, Survey
+from model import (
+    Answer,
+    Assessment,
+    FeedbackAnswer,
+    Option,
+    Question,
+    QuestionType,
+    Survey,
+    User,
+)
 from schema.api.survey import SurveyAnswersPayload
 from schema.llm.feedback_open_question import FeedbackOpenQuestion
 from schema.llm.questions import ClosedQuestion, OpenQuestion
@@ -176,99 +184,90 @@ async def create_survey_answers(
     }
 
 
-@router.post("/{assessment_id}/feedback", status_code=status.HTTP_201_CREATED)
-async def create_survey_feedback(
-    assessment_id: int,
+@router.get("/{survey_id}/metrics", status_code=status.HTTP_200_OK)
+async def get_survey_metrics(
+    survey_id: int,
+    ranking_size: int,
     db: AsyncSession = Depends(get_db),
-) -> list[dict]:
+) -> dict:
     """
-    Generate feedback for all answers in an assessment.
-    Open questions are evaluated by the LLM.
-    Closed questions use correctness + hint.
+    Return ranking metrics and summary for a survey.
     """
 
-    result = await db.execute(
-        select(Answer)
-        .join(Assessment)
-        .join(Question)
-        .options(
-            selectinload(Answer.question),
-            selectinload(Answer.option),
+    # ---------- RANKING (Top K) ----------
+
+    avg_score = func.avg(FeedbackAnswer.score)
+
+    ranking_stmt = (
+        select(
+            User.nickname.label("user"),
+            avg_score.label("avg_score"),
+            func.dense_rank().over(order_by=avg_score.desc()).label("rank"),
         )
-        .where(Assessment.id == assessment_id)
+        .join(Assessment, Assessment.user_id == User.id)
+        .join(FeedbackAnswer, FeedbackAnswer.assessment_id == Assessment.id)
+        .where(Assessment.survey_id == survey_id)
+        .group_by(User.nickname)
+        .order_by(avg_score.desc())
+        .limit(ranking_size)
     )
 
-    answers = result.scalars().all()
+    ranking_result = await db.execute(ranking_stmt)
+    ranking_rows = ranking_result.all()
 
-    if not answers:
+    if not ranking_rows:
         raise HTTPException(
-            status_code=404, detail="No answers found for this assessment"
+            status_code=404,
+            detail="No feedback metrics found for this survey",
         )
 
-    open_answers = [a for a in answers if a.question.question_type == QuestionType.OPEN]
-    closed_answers = [
-        a for a in answers if a.question.question_type == QuestionType.CLOSED
+    ranking = [
+        {
+            "user": row.user,
+            "rank": row.rank,
+            "avg_score": round(float(row.avg_score), 3),
+        }
+        for row in ranking_rows
     ]
 
-    feedback_results: list[dict] = []
+    # ---------- SURVEY STATS FOR SUMMARY ----------
 
-    # -------- OPEN QUESTIONS (LLM) --------
-
-    if open_answers:
-        llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
-
-        prompt = ChatPromptTemplate.from_messages(
-            [
-                (
-                    "system",
-                    "You are an evaluator. Given a question and a user's answer, "
-                    "score how good the answer is on a scale from 0 to 1. "
-                    "Be encouraging and focus on strengths.",
-                ),
-                ("human", "{question_and_answer}"),
-            ]
-        )
-
-        structured_llm = llm.with_structured_output(FeedbackOpenQuestion)
-
-        chain = prompt | structured_llm
-
-        batch_inputs = [
-            {
-                "question_and_answer": (
-                    f"Question: {a.question.description}\n"
-                    f"User answer: {a.text_answer}"
+    stats_stmt = (
+        select(
+            Survey.topic,
+            func.count(Question.id).label("total_questions"),
+            func.sum(
+                case(
+                    (Question.question_type == QuestionType.OPEN, 1),
+                    else_=0,
                 )
-            }
-            for a in open_answers
-        ]
-
-        results = await chain.abatch(batch_inputs)
-
-        for answer, feedback in zip(open_answers, results):
-            feedback_results.append(
-                {
-                    "answer_id": answer.id,
-                    "score": feedback.score,
-                    "feedback": feedback.reason,
-                }
-            )
-
-    # -------- CLOSED QUESTIONS (RULE-BASED) --------
-
-    for answer in closed_answers:
-        is_correct = bool(answer.option and answer.option.is_correct)
-
-        feedback_results.append(
-            {
-                "answer_id": answer.id,
-                "score": 1.0 if is_correct else 0.0,
-                "feedback": (
-                    "¡Respuesta correcta! Buen trabajo 🎉"
-                    if is_correct
-                    else answer.question.hint
-                ),
-            }
+            ).label("open_questions"),
+            func.sum(
+                case(
+                    (Question.question_type == QuestionType.CLOSED, 1),
+                    else_=0,
+                )
+            ).label("closed_questions"),
         )
+        .join(Question, Question.survey_id == Survey.id)
+        .where(Survey.id == survey_id)
+        .group_by(Survey.topic)
+    )
 
-    return feedback_results
+    stats = (await db.execute(stats_stmt)).one()
+
+    best_user = ranking[0]["user"]
+
+    # ---------- SUMMARY ----------
+
+    summary = (
+        f"Se obtuvo un ranking para la encuesta '{stats.topic}', con un total de "
+        f"{stats.total_questions} preguntas ({stats.open_questions} abiertas y "
+        f"{stats.closed_questions} cerradas). "
+        f"El mejor desempeño general fue de {best_user}."
+    )
+
+    return {
+        "ranking": ranking,
+        "summary": summary,
+    }
